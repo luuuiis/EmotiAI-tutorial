@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EmotiAI Vision — Tutorial do código</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="layout">
+
+<nav class="side" id="sideNav">
+  <div class="mobile-bar" id="mobileToggle">
+    <div>
+      <div class="brand">EMOTIAI · VISION</div>
+      <div class="brand-sub" style="margin-bottom:0;">Tutorial do código ▾</div>
+    </div>
+  </div>
+  <div class="brand" id="brandDesktop">EMOTIAI · VISION</div>
+  <div class="brand-sub" id="brandSubDesktop">Tutorial do código</div>
+
+  <ul id="navList">
+    <li><a href="#inicio">Início</a></li>
+    <li><a href="#teste-ao-vivo">Testar ao vivo ▶</a></li>
+    <li><a href="#arquitetura">Arquitetura geral</a></li>
+    <div class="navgroup-title">PASSO A PASSO</div>
+    <li><a href="#camera">1 · Captura de vídeo <span class="mono-tag">camera/</span></a></li>
+    <li><a href="#deteccao">2 · Detecção de pose <span class="mono-tag">detection/</span></a></li>
+    <li><a href="#tracking">3 · Rastreamento <span class="mono-tag">tracking/</span></a></li>
+    <li><a href="#analise">4 · Análise de postura <span class="mono-tag">analysis/</span></a></li>
+    <li><a href="#eventos">5 · Eventos <span class="mono-tag">events/</span></a></li>
+    <li><a href="#metricas">6 · Métricas agregadas <span class="mono-tag">analysis/</span></a></li>
+    <li><a href="#visualizacao">7 · Visualização debug <span class="mono-tag">debug/</span></a></li>
+    <li><a href="#execucao">8 · Loop principal <span class="mono-tag">main.py</span></a></li>
+    <div class="navgroup-title">REFERÊNCIA</div>
+    <li><a href="#configuracoes">Configurações</a></li>
+    <li><a href="#executar">Como executar</a></li>
+  </ul>
+</nav>
+
+<main>
+
+  <section class="hero" id="inicio">
+    <div class="eyebrow">TUTORIAL TÉCNICO</div>
+    <h1>Como o EmotiAI Vision enxerga participação em sala de aula</h1>
+    <p class="lede">Este guia explica, módulo por módulo, o código real do projeto: uma pipeline local de visão computacional que estima postura corporal e participação observável a partir da câmera — sem reconhecer rostos, sem identificar pessoas e sem gravar imagem ou vídeo.</p>
+
+    <div class="principles">
+      <div class="principle">
+        <strong>SEM RECONHECIMENTO FACIAL</strong>
+        <span>O sistema não processa identidade — apenas pontos anatômicos (ombros, cotovelos, punhos) de silhuetas.</span>
+      </div>
+      <div class="principle">
+        <strong>SEM ARMAZENAMENTO</strong>
+        <span>Nenhum frame ou vídeo é salvo em disco. Só métricas agregadas e anônimas chegam ao console.</span>
+      </div>
+      <div class="principle">
+        <strong>IDENTIDADE TEMPORÁRIA</strong>
+        <span>IDs como <code>track_1</code> existem apenas durante a sessão em execução e são descartados ao final.</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="teste-ao-vivo">
+    <div class="eyebrow">MÃO NA MASSA</div>
+    <h2>Teste o funcionamento agora, pela sua câmera</h2>
+    <p class="lede">Esta caixa roda, direto no seu navegador, a mesma lógica do projeto — detecção de pose, regra de braço levantado e métrica de participação — usando a versão JavaScript/WASM do MediaPipe. Nenhum frame sai do seu computador.</p>
+
+    <div class="why" style="margin-bottom:22px;"><strong>Sobre isto não ser o código Python direto:</strong> um navegador não consegue executar o <code>main.py</code> do projeto (ele depende de OpenCV, de um ambiente Python local e de acesso direto à câmera do sistema). O que roda aqui é uma reimplementação fiel das mesmas regras — mesmos índices de landmark, mesma condição de braço levantado, mesma janela de agregação — usando o pacote oficial <code>@mediapipe/tasks-vision</code>, carregado de um CDN. É a forma mais próxima de "rodar o código" que dá para oferecer direto na página.</p></div>
+
+    <div class="panel live-panel">
+      <div class="panel-head"><span class="file">demo/pose_web.js</span><span id="liveModelState">modelo não carregado</span></div>
+      <div class="live-body">
+        <div class="live-video-wrap">
+          <video id="liveVideo" class="live-video" playsinline autoplay muted></video>
+          <canvas id="liveCanvas" class="live-canvas"></canvas>
+          <div class="live-overlay-msg" id="liveOverlayMsg">Clique em "Ligar câmera" para começar</div>
+        </div>
+        <div class="live-side">
+          <button id="liveToggle" class="live-btn">Ligar câmera</button>
+          <div class="metric-grid" id="liveMetrics">
+            <div class="metric-card"><span class="metric-label">Pessoas agora</span><span class="metric-value" id="mPeople">0</span></div>
+            <div class="metric-card"><span class="metric-label">Braços levantados</span><span class="metric-value" id="mArms">0</span></div>
+            <div class="metric-card"><span class="metric-label">Participação (10s)</span><span class="metric-value" id="mRatio">–</span></div>
+            <div class="metric-card"><span class="metric-label">Próxima janela em</span><span class="metric-value" id="mWindow">10s</span></div>
+          </div>
+          <div class="badge-row" id="liveBadges"></div>
+        </div>
+      </div>
+      <div class="live-console" id="liveConsole">
+        <div class="live-console-line cm">// os relatórios de janela (iguais ao aggregator.py) aparecem aqui</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="arquitetura">
+    <div class="eyebrow">VISÃO GERAL</div>
+
+    <h2>Arquitetura da pipeline</h2>
+    <p class="lede">Cada frame da câmera passa por seis estágios até virar uma métrica de participação. Nenhum estágio conhece a implementação do anterior — eles se comunicam por objetos simples (dataclasses), o que torna cada peça testável isoladamente.</p>
+
+    <div class="panel pipeline">
+      <div class="stage">
+        <div><span class="idx">01</span><span class="file">camera/capture.py</span></div>
+        <div class="desc"><strong>Captura</strong><span>Lê frames da webcam com OpenCV, aplica resolução e rotação configuradas.</span></div>
+      </div>
+      <div class="arrow-down">↓</div>
+      <div class="stage">
+        <div><span class="idx">02</span><span class="file">pose_detector.py</span></div>
+        <div class="desc"><strong>Detecção de pose</strong><span>O MediaPipe Pose Landmarker encontra até N esqueletos (33 pontos cada) por frame.</span></div>
+      </div>
+      <div class="arrow-down">↓</div>
+      <div class="stage">
+        <div><span class="idx">03</span><span class="file">tracking/tracker.py</span></div>
+        <div class="desc"><strong>Rastreamento</strong><span>Associa cada pose a um <code>track_id</code> pela proximidade do centro dos ombros entre frames.</span></div>
+      </div>
+      <div class="arrow-down">↓</div>
+      <div class="stage">
+        <div><span class="idx">04</span><span class="file">arm_detection.py<br>posture_detection.py</span></div>
+        <div class="desc"><strong>Análise de postura</strong><span>Regras geométricas decidem se um braço está levantado, confirmando só após frames consecutivos estáveis.</span></div>
+      </div>
+      <div class="arrow-down">↓</div>
+      <div class="stage">
+        <div><span class="idx">05</span><span class="file">event_manager.py</span></div>
+        <div class="desc"><strong>Eventos</strong><span>Transições de estado (braço subiu/desceu, pessoa entrou/saiu) viram eventos com timestamp e confiança.</span></div>
+      </div>
+      <div class="arrow-down">↓</div>
+      <div class="stage">
+        <div><span class="idx">06</span><span class="file">analysis/aggregator.py</span></div>
+        <div class="desc"><strong>Agregação</strong><span>A cada janela de tempo, os eventos viram um JSON com médias e taxa de participação — a única coisa que sai do módulo.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="camera">
+    <div class="eyebrow">PASSO 1</div>
+    <h2>Captura de vídeo</h2>
+    <p class="lede">A câmera é a única fonte de dados do sistema. <code>CameraCapture</code> encapsula o <code>cv2.VideoCapture</code> e devolve frames já rotacionados, sem nunca gravá-los em disco.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">camera/capture.py</span><span>OpenCV</span></div>
+      <pre><code><span class="kw">class</span> <span class="fn">CameraCapture</span>:
+    <span class="kw">def</span> <span class="fn">open</span>(self) -> <span class="kw">None</span>:
+        self._camera = cv2.VideoCapture(source)
+        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
+        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
+        self._camera.set(cv2.CAP_PROP_FPS, self.config.fps)
+
+    <span class="kw">def</span> <span class="fn">read</span>(self) -> np.ndarray:
+        success, frame = self._camera.read()
+        <span class="kw">if not</span> success <span class="kw">or</span> frame <span class="kw">is</span> <span class="kw">None</span>:
+            <span class="kw">raise</span> CameraError(<span class="st">"Falha de leitura ou câmera desconectada"</span>)
+        <span class="kw">return</span> self._rotate(frame)</code></pre>
+    </div>
+
+    <div class="why"><strong>Por que assim:</strong> a classe usa o protocolo <code>__enter__</code>/<code>__exit__</code> (context manager), então <code>with CameraCapture(...) as camera:</code> garante que <code>release()</code> seja chamado mesmo se o programa quebrar no meio — a câmera nunca fica "presa" por um processo travado.</div>
+
+    <h3>Configuração</h3>
+    <p>Resolução, rotação e fonte de vídeo vêm de <code>camera/config.py</code>, um dataclass simples que <code>main.py</code> preenche a partir de <code>Settings</code>. Isso mantém a captura agnóstica: ela não sabe nada sobre postura, tracking ou métricas — só entrega frames.</p>
+  </section>
+
+  <section id="deteccao">
+    <div class="eyebrow">PASSO 2</div>
+    <h2>Detecção de pose com MediaPipe</h2>
+    <p class="lede">Cada frame passa pelo modelo <code>pose_landmarker_lite.task</code> do MediaPipe, que devolve até 33 pontos anatômicos (landmarks) por pessoa — sem qualquer dado de identidade.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">detection/pose_detector.py</span><span>MediaPipe Tasks</span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">detect</span>(self, frame: np.ndarray, timestamp_ms: <span class="kw">int</span>) -> list[DetectedPose]:
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+    result = self._landmarker.detect_for_video(image, timestamp_ms)
+
+    poses: list[DetectedPose] = []
+    <span class="kw">for</span> landmarks <span class="kw">in</span> result.pose_landmarks:
+        pose = PoseLandmarks(list(landmarks))
+        confidence = pose.confidence(<span class="st">"left_shoulder"</span>, <span class="st">"right_shoulder"</span>)
+        poses.append(DetectedPose(landmarks=pose, confidence=confidence))
+    <span class="kw">return</span> poses</code></pre>
+    </div>
+
+    <p>O modo <code>RunningMode.VIDEO</code> foi escolhido em vez do modo de imagem única porque ele usa o timestamp de cada frame para manter coerência temporal entre detecções — importante, já que o sistema roda em fluxo contínuo, não em fotos isoladas.</p>
+
+    <h3>Um adaptador em vez de números mágicos</h3>
+    <p><code>pose_landmarks.py</code> nomeia os 33 índices do MediaPipe (<code>left_shoulder</code>, <code>right_wrist</code>, <code>left_hip</code>...) e obriga o resto do projeto a usar esses nomes em vez de <code>landmarks[15]</code>. A classe também calcula <code>confidence()</code> como o mínimo entre <em>visibility</em> e <em>presence</em> do MediaPipe — uma decisão conservadora: só considera um ponto confiável quando as duas métricas concordam.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">detection/pose_landmarks.py</span><span></span></div>
+      <pre><code>LANDMARK_INDEX = {
+    <span class="st">"left_shoulder"</span>: <span class="kw">11</span>, <span class="st">"right_shoulder"</span>: <span class="kw">12</span>,
+    <span class="st">"left_elbow"</span>: <span class="kw">13</span>,   <span class="st">"right_elbow"</span>: <span class="kw">14</span>,
+    <span class="st">"left_wrist"</span>: <span class="kw">15</span>,   <span class="st">"right_wrist"</span>: <span class="kw">16</span>,
+    <span class="cm"># ... até 33 pontos (rosto, tronco, pernas)</span>
+}</code></pre>
+    </div>
+  </section>
+
+  <section id="tracking">
+    <div class="eyebrow">PASSO 3</div>
+    <h2>Rastreamento por proximidade</h2>
+    <p class="lede">O MediaPipe não sabe quem é quem entre um frame e outro — só devolve poses soltas. O <code>PoseTracker</code> resolve isso comparando a distância entre o centro dos ombros de cada pose e os tracks já existentes.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">tracking/tracker.py</span><span></span></div>
+      <pre><code><span class="kw">for</span> distance, track_id, pose_index <span class="kw">in</span> sorted(candidates):
+    <span class="kw">if</span> distance > self._max_distance <span class="kw">or</span> track_id <span class="kw">in</span> matched_tracks:
+        <span class="kw">continue</span>
+    track.update(pose.landmarks.center(), pose.landmarks, pose.confidence, timestamp_ms)
+    <span class="cm"># pose mais próxima "vence" e atualiza o track existente</span></code></pre>
+    </div>
+
+    <div class="why"><strong>Por que assim:</strong> ordenar todos os pares (distância, track, pose) e consumi-los do mais próximo para o mais distante é um casamento guloso (<em>greedy matching</em>) — simples de entender e rápido o bastante para rodar em tempo real, já que o número de pessoas em uma sala é pequeno.</div>
+
+    <p>Poses que não casam com nenhum track viram uma pessoa nova (<code>track_N</code>). Tracks que não recebem atualização por <code>tracker_max_missed_frames</code> frames seguidos são considerados perdidos e removidos — isso absorve oclusões curtas (alguém passando na frente) sem criar um ID novo para a mesma pessoa.</p>
+  </section>
+
+  <section id="analise">
+    <div class="eyebrow">PASSO 4</div>
+    <h2>Análise de postura: braço levantado</h2>
+    <p class="lede">A "IA" de decisão aqui não é um modelo treinado — é uma regra geométrica interpretável sobre os landmarks, decidida por <code>ArmRaisedRule</code> e confirmada ao longo do tempo por <code>PostureAnalyzer</code>.</p>
+
+    <h3>A regra geométrica</h3>
+    <div class="panel">
+      <div class="panel-head"><span class="file">analysis/arm_detection.py</span><span></span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">_is_raised</span>(self, pose, side: <span class="kw">str</span>) -> <span class="kw">bool</span>:
+    wrist_above_shoulder = float(wrist.y) < float(shoulder.y) - self._wrist_margin
+    elbow_above_hip = float(elbow.y) < float(hip.y)
+    <span class="kw">return</span> wrist_above_shoulder <span class="kw">and</span> elbow_above_hip</code></pre>
+    </div>
+    <p>Como no sistema de coordenadas de imagem o eixo Y cresce para baixo, "punho acima do ombro" vira <code>wrist.y &lt; shoulder.y</code>. A margem de <code>0.035</code> evita que pequenos tremores classifiquem um braço parado como levantado. Quando o quadril não está visível (pessoa sentada, fora de quadro), a regra cai para uma versão mais simples e ainda assim conservadora: só olha punho e ombro.</p>
+
+    <h3>Confirmação temporal</h3>
+    <p><code>PostureAnalyzer</code> não confia em um único frame — ele exige <code>required_consecutive_frames</code> (padrão: 5) frames seguidos no mesmo estado antes de confirmar uma transição, e trata um lado sem confiança como "estado desconhecido" em vez de "braço abaixado", para não gerar eventos falsos por oclusão momentânea.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">analysis/posture_detection.py</span><span></span></div>
+      <pre><code><span class="kw">if</span> state.candidate_state == candidate:
+    state.candidate_frames += <span class="kw">1</span>
+<span class="kw">else</span>:
+    state.candidate_state = candidate
+    state.candidate_frames = <span class="kw">1</span>
+
+<span class="kw">if</span> state.candidate_frames < self._required_frames:
+    <span class="kw">return</span> result, []  <span class="cm"># ainda não é estável o suficiente</span></code></pre>
+    </div>
+  </section>
+
+  <section id="eventos">
+    <div class="eyebrow">PASSO 5</div>
+    <h2>Eventos</h2>
+    <p class="lede">Toda transição de estado relevante — pessoa detectada, pessoa perdida, braço subiu ou desceu — vira um <code>VisionEvent</code>: um registro imutável com tipo, id do track, confiança e timestamp.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">events/event.py</span><span></span></div>
+      <pre><code><span class="kw">class</span> <span class="fn">EventType</span>(StrEnum):
+    PERSON_DETECTED = <span class="st">"PERSON_DETECTED"</span>
+    PERSON_LOST = <span class="st">"PERSON_LOST"</span>
+    LEFT_ARM_RAISED = <span class="st">"LEFT_ARM_RAISED"</span>
+    RIGHT_ARM_RAISED = <span class="st">"RIGHT_ARM_RAISED"</span>
+    BOTH_ARMS_RAISED = <span class="st">"BOTH_ARMS_RAISED"</span></code></pre>
+    </div>
+
+    <p><code>EventManager</code> apenas cria o evento e escreve uma linha de log — ele não guarda histórico em memória além do lote atual. Isso é proposital: eventos são um fluxo passageiro, quem precisa de memória de mais longo prazo é o próximo estágio, o agregador.</p>
+  </section>
+
+  <section id="metricas">
+    <div class="eyebrow">PASSO 6</div>
+    <h2>Métricas agregadas e participação</h2>
+    <p class="lede">A cada janela de <code>aggregation_window_seconds</code> (padrão: 10s), o <code>MetricsAggregator</code> resume tudo o que aconteceu em um único JSON — a única saída de dados do sistema além da janela de debug.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">analysis/aggregator.py</span><span></span></div>
+      <pre><code>report = {
+    <span class="st">"people_average"</span>: round(average, <span class="kw">2</span>),
+    <span class="st">"people_max"</span>: max(self._people_samples, default=<span class="kw">0</span>),
+    <span class="st">"participating_people"</span>: len(self._participants),
+    <span class="st">"arm_raise_events"</span>: self._arm_raise_events,
+    <span class="st">"participation_ratio"</span>: round(participation_ratio(...), <span class="kw">3</span>),
+}</code></pre>
+    </div>
+
+    <p>A taxa de participação em si é uma função quase trivial — de propósito:</p>
+    <div class="panel">
+      <div class="panel-head"><span class="file">analysis/participation.py</span><span></span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">participation_ratio</span>(unique_participants: <span class="kw">int</span>, average_people: <span class="kw">float</span>) -> <span class="kw">float</span>:
+    <span class="cm">"""Participação observável; não é uma medida de satisfação ou emoção."""</span>
+    <span class="kw">return</span> unique_participants / average_people <span class="kw">if</span> average_people > <span class="kw">0</span> <span class="kw">else</span> <span class="kw">0.0</span></code></pre>
+    </div>
+    <div class="why"><strong>Por que assim:</strong> o comentário no próprio código já é a justificativa de projeto mais importante do sistema — a métrica descreve <em>quantas pessoas levantaram o braço ao menos uma vez</em> dentro da janela, não estado emocional, engajamento subjetivo ou atenção. É um limite deliberado para não superinterpretar um sinal puramente geométrico.</div>
+  </section>
+
+  <section id="visualizacao">
+    <div class="eyebrow">PASSO 7</div>
+    <h2>Visualização de debug</h2>
+    <p class="lede"><code>DebugRenderer</code> desenha o esqueleto detectado sobre o frame ao vivo — só para desenvolvimento; pode ser desligado com <code>debug_mode=False</code> em produção, já que ele é o único ponto do sistema que exibe a imagem da câmera na tela.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">debug/renderer.py</span><span></span></div>
+      <pre><code>CONNECTIONS = (
+    (<span class="st">"left_shoulder"</span>, <span class="st">"right_shoulder"</span>),
+    (<span class="st">"left_shoulder"</span>, <span class="st">"left_elbow"</span>),
+    (<span class="st">"left_elbow"</span>, <span class="st">"left_wrist"</span>),
+    <span class="cm"># ... ombros, braços, quadris, pernas</span>
+)
+cv2.line(frame, points[first], points[second], (<span class="kw">255, 170, 0</span>), <span class="kw">2</span>)
+cv2.circle(frame, point, <span class="kw">3</span>, (<span class="kw">0, 255, 0</span>), -<span class="kw">1</span>)</code></pre>
+    </div>
+    <p>As mesmas cores usadas nesta página (o verde dos pontos, o âmbar das linhas) vêm diretamente dessas constantes RGB do renderer — a identidade visual do tutorial é a identidade visual da própria ferramenta de debug do projeto.</p>
+  </section>
+
+  <section id="execucao">
+    <div class="eyebrow">PASSO 8</div>
+    <h2>O loop principal</h2>
+    <p class="lede"><code>main.py</code> não implementa nenhuma regra de visão — ele só orquestra a ordem: câmera → detecção → tracking → análise → eventos → agregação → (opcional) renderização. Também controla a taxa de processamento, independente da taxa de captura da câmera.</p>
+
+    <div class="panel">
+      <div class="panel-head"><span class="file">main.py</span><span></span></div>
+      <pre><code><span class="kw">if</span> now - last_processed_at >= period:  <span class="cm"># limita a target_processing_fps</span>
+    poses = detector.detect(frame, timestamp_ms)
+    tracking = tracker.update(poses, timestamp_ms)
+
+    <span class="kw">for</span> track <span class="kw">in</span> tracking.tracks:
+        detected, transitions = analyzer.analyze(track)
+        emitted.extend(events.create(ev, track.track_id, detected.confidence, timestamp_ms)
+                       <span class="kw">for</span> ev <span class="kw">in</span> transitions)
+
+    latest_metrics = aggregator.update_realtime(latest_tracks)
+    aggregator.ingest(timestamp_ms, latest_metrics.people_detected, emitted)</code></pre>
+    </div>
+    <div class="why"><strong>Por que assim:</strong> separar <code>period</code> (taxa de processamento, ex. 10 FPS) da taxa real da câmera (ex. 30 FPS) evita gastar inferência do MediaPipe em frames redundantes — a câmera continua fluindo, mas só 1 em cada 3 frames é de fato analisado.</div>
+  </section>
+
+  <section id="configuracoes">
+    <div class="eyebrow">REFERÊNCIA</div>
+    <h2>Configurações do MVP</h2>
+    <p class="lede">Todo o comportamento ajustável do sistema fica em um único lugar, <code>config/settings.py</code>, validado no <code>__post_init__</code>.</p>
+    <table>
+      <tr><th>Parâmetro</th><th>Padrão</th><th>O que controla</th></tr>
+      <tr><td class="mono">frame_width / frame_height</td><td>1280 × 720</td><td>Resolução solicitada à câmera</td></tr>
+      <tr><td class="mono">rotation</td><td>180</td><td>Rotação do frame (0/90/180/270)</td></tr>
+      <tr><td class="mono">max_poses</td><td>10</td><td>Máximo de pessoas detectadas por frame</td></tr>
+      <tr><td class="mono">min_landmark_confidence</td><td>0.5</td><td>Confiança mínima para considerar um ponto válido</td></tr>
+      <tr><td class="mono">target_processing_fps</td><td>10.0</td><td>Taxa de análise (independente da taxa da câmera)</td></tr>
+      <tr><td class="mono">required_consecutive_frames</td><td>5</td><td>Estabilidade exigida antes de confirmar um evento</td></tr>
+      <tr><td class="mono">aggregation_window_seconds</td><td>10.0</td><td>Duração de cada janela de métricas</td></tr>
+      <tr><td class="mono">tracker_max_distance</td><td>0.18</td><td>Distância máxima para casar uma pose a um track existente</td></tr>
+      <tr><td class="mono">tracker_max_missed_frames</td><td>8</td><td>Frames tolerados antes de dar uma pessoa como perdida</td></tr>
+    </table>
+  </section>
+
+  <section id="executar">
+    <div class="eyebrow">REFERÊNCIA</div>
+    <h2>Como executar</h2>
+    <p class="lede">Dependências mínimas — só três pacotes:</p>
+    <div class="tag-list">
+      <span class="tag">mediapipe ≥ 1.0.0</span>
+      <span class="tag">opencv-python ≥ 4.8.0</span>
+      <span class="tag">numpy ≥ 1.24.0</span>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="file">terminal</span><span></span></div>
+      <pre><code>cd app/computacional-vision
+./venv/bin/python main.py
+<span class="cm"># pressione Q na janela de debug para encerrar</span></code></pre>
+    </div>
+    <p>Os IDs de rastreamento (<code>track_1</code>, <code>track_2</code>...) só existem durante essa execução — encerrar o programa apaga qualquer memória de quem foi detectado.</p>
+
+    <footer>
+      Tutorial gerado a partir do código-fonte de <strong>EmotiAI Vision</strong> — Ciência da Computação, UNIP Limeira.
+    </footer>
+  </section>
+
+</main>
+</div>
+
+
+<script src="js/live-demo.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>
