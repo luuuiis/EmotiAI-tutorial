@@ -68,10 +68,6 @@
   <section id="teste-ao-vivo">
     <div class="eyebrow">MÃO NA MASSA</div>
     <h2>Teste o funcionamento agora, pela sua câmera</h2>
-    <p class="lede">Esta caixa roda, direto no seu navegador, a mesma lógica do projeto — detecção de pose, regra de braço levantado e métrica de participação — usando a versão JavaScript/WASM do MediaPipe. Nenhum frame sai do seu computador.</p>
-
-    <div class="why" style="margin-bottom:22px;"><strong>Sobre isto não ser o código Python direto:</strong> um navegador não consegue executar o <code>main.py</code> do projeto (ele depende de OpenCV, de um ambiente Python local e de acesso direto à câmera do sistema). O que roda aqui é uma reimplementação fiel das mesmas regras — mesmos índices de landmark, mesma condição de braço levantado, mesma janela de agregação — usando o pacote oficial <code>@mediapipe/tasks-vision</code>, carregado de um CDN. É a forma mais próxima de "rodar o código" que dá para oferecer direto na página.</p></div>
-
     <div class="panel live-panel">
       <div class="panel-head"><span class="file">demo/pose_web.js</span><span id="liveModelState">modelo não carregado</span></div>
       <div class="live-body">
